@@ -1,326 +1,445 @@
-# 抖音账户购买技术开发指南：从零构建高可用交易系统
+# 抖音账户购买与自动化管理 SDK
 
-```markdown
-# 抖音账户购买技术开发指南：从零构建高可用交易系统
-
-![抖音账户交易系统架构图](https://example.com/douyin-account-system.png)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Last Commit](https://img.shields.io/badge/last%20commit-June%202025-brightgreen)
 
 ## 项目概述
 
-本开源项目提供完整的抖音(Douyin/TikTok)账户交易系统技术解决方案，包含前后端开发、安全验证、反爬虫机制和搜索引擎优化(SEO)实现。系统采用微服务架构，支持高并发交易场景。
+本项目是一个用于抖音(Douyin)账户交易、自动化管理和数据分析的Python SDK。它提供了从账户购买验证到内容自动化发布的全套解决方案，适用于需要批量运营抖音账户的开发者。
 
-## 技术栈
+**主要功能**：
+- 抖音账户购买验证接口
+- 账户信息自动化获取
+- 内容批量发布与管理
+- 数据分析与增长监控
+- 安全防护与反检测机制
 
-- 前端: React 18 + TypeScript + Next.js 14
-- 后端: Node.js 18 + NestJS + Python 3.11
-- 数据库: MongoDB 6 + Redis 7
-- 搜索引擎优化: SSR + 语义化HTML + 关键词策略
-- 基础设施: Docker + Kubernetes + AWS/GCP
+## 安装指南
 
-## 核心功能模块
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/douyin-account-sdk.git
+cd douyin-account-sdk
 
-### 1. 抖音账户爬虫与验证系统
+# 安装依赖
+pip install -r requirements.txt
+
+# 设置环境变量
+export DOUYIN_API_KEY="your_api_key"
+export DOUYIN_SECRET="your_secret"
+```
+
+## 核心功能实现
+
+### 1. 抖音账户购买验证
 
 ```python
-# 抖音账户验证爬虫
-import requests
-from bs4 import BeautifulSoup
-import json
-
-class DouyinAccountValidator:
-    def __init__(self):
-        self.session = requests.Session()
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+class DouyinAccountPurchaser:
+    def __init__(self, api_key, secret):
+        self.api_key = api_key
+        self.secret = secret
+        self.base_url = "https://api.douyin.com/v3/account/"
+        
+    def verify_account(self, account_id):
+        """
+        验证抖音账户是否可购买
+        :param account_id: 抖音账户ID
+        :return: 验证结果和账户信息
+        """
+        timestamp = int(time.time())
+        params = {
+            "account_id": account_id,
+            "api_key": self.api_key,
+            "timestamp": timestamp
         }
-    
-    def validate_account(self, account_id):
-        url = f"https://www.douyin.com/user/{account_id}"
+        params["signature"] = self._generate_signature(params)
+        
         try:
-            response = self.session.get(url, headers=self.headers)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response = requests.get(
+                f"{self.base_url}verify",
+                params=params,
+                headers={"Content-Type": "application/json"}
+            )
+            data = response.json()
             
-            # 提取账户信息
-            account_data = {
-                'is_valid': '404' not in response.text,
-                'follower_count': self._extract_followers(soup),
-                'video_count': self._extract_video_count(soup),
-                'last_active': self._extract_last_active(soup)
-            }
-            return account_data
+            if data.get("code") == 200:
+                return {
+                    "status": "available",
+                    "data": data["data"]
+                }
+            else:
+                return {
+                    "status": "unavailable",
+                    "reason": data.get("message", "Unknown error")
+                }
         except Exception as e:
-            return {'error': str(e)}
+            raise DouyinAPIError(f"Account verification failed: {str(e)}")
     
-    # 其他提取方法...
+    def _generate_signature(self, params):
+        """
+        生成API请求签名
+        """
+        param_str = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
+        sign_str = param_str + self.secret
+        return hashlib.sha256(sign_str.encode()).hexdigest()
 ```
 
-### 2. 账户交易API服务
-
-```javascript
-// Node.js 交易API
-const express = require('express');
-const mongoose = require('mongoose');
-const app = express();
-
-// MongoDB 账户模型
-const accountSchema = new mongoose.Schema({
-  douyinId: { type: String, unique: true },
-  price: Number,
-  followers: Number,
-  seller: String,
-  verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'] },
-  createdAt: { type: Date, default: Date.now }
-});
-
-// RESTful API 端点
-app.get('/api/accounts', async (req, res) => {
-  const { minFollowers, maxPrice, sortBy } = req.query;
-  const query = {};
-  
-  if (minFollowers) query.followers = { $gte: parseInt(minFollowers) };
-  if (maxPrice) query.price = { $lte: parseInt(maxPrice) };
-  
-  const sortOptions = {
-    'price-asc': { price: 1 },
-    'price-desc': { price: -1 },
-    'followers-desc': { followers: -1 }
-  };
-  
-  const accounts = await Account.find(query)
-    .sort(sortOptions[sortBy] || { createdAt: -1 })
-    .limit(50);
-  
-  res.json(accounts);
-});
-
-// 其他API端点...
-```
-
-## 搜索引擎优化实现
-
-### 1. 关键词策略
-
-本项目针对"抖音账户购买"关键词进行深度优化：
-
-```html
-<!-- 语义化HTML结构 -->
-<article itemscope itemtype="https://schema.org/Product">
-  <h1 itemprop="name">安全可靠的抖音账户购买平台</h1>
-  <div itemprop="description">
-    <p>专业提供高质量抖音账号交易服务，支持粉丝数1万至1000万+的各类账号购买。</p>
-    <ul>
-      <li>真人活跃粉丝账号</li>
-      <li>企业蓝V认证账号</li>
-      <li>直播带货高权重账号</li>
-    </ul>
-  </div>
-</article>
-```
-
-### 2. 性能优化
-
-```javascript
-// Next.js 性能优化配置
-// next.config.js
-module.exports = {
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable'
-          }
-        ],
-      },
-    ];
-  },
-  images: {
-    domains: ['cdn.douyin.com'],
-    formats: ['image/avif', 'image/webp'],
-  },
-  compress: true,
-  reactStrictMode: true,
-  swcMinify: true,
-};
-```
-
-### 3. 内容优化策略
-
-```markdown
-## 抖音账号购买常见问题
-
-### Q: 如何确保购买的抖音账号安全？
-我们采用三重验证机制：
-1. 人工审核账户历史记录
-2. 技术验证账户所有权
-3. 7天账号申诉期保障
-
-### Q: 购买后账号会被回收吗？
-所有账号均通过官方渠道转移，使用我们的技术方案可确保：
-- 100%所有权转移
-- 完整粉丝和数据保留
-- 官方认证转移支持
-```
-
-## 部署方案
-
-### Docker 容器化部署
-
-```dockerfile
-# Dockerfile 示例
-FROM node:18-alpine
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-
-ENV NODE_ENV production
-RUN npm run build
-
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-### Kubernetes 集群配置
-
-```yaml
-# deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: douyin-marketplace
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: douyin-marketplace
-  template:
-    metadata:
-      labels:
-        app: douyin-marketplace
-    spec:
-      containers:
-      - name: app
-        image: your-registry/douyin-marketplace:latest
-        ports:
-        - containerPort: 3000
-        resources:
-          limits:
-            cpu: "1"
-            memory: "1Gi"
-```
-
-## 反爬虫与安全措施
+### 2. 账户自动化管理
 
 ```python
-# 反爬虫中间件
-from fastapi import FastAPI, Request
-from fastapi.middleware import Middleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-
-app = FastAPI()
-
-# 安全中间件
-middleware = [
-    Middleware(HTTPSRedirectMiddleware),
-    Middleware(
-        SecurityHeadersMiddleware,
-        always=True,
-        content_security_policy={
-            'default-src': "'self'",
-            'script-src': ["'self'", "'unsafe-inline'"],
+class DouyinAccountManager:
+    def __init__(self, account_data, proxy=None):
+        self.account_id = account_data["account_id"]
+        self.cookies = account_data.get("cookies", {})
+        self.proxy = proxy
+        self.session = self._init_session()
+        
+    def _init_session(self):
+        session = requests.Session()
+        if self.proxy:
+            session.proxies = {"http": self.proxy, "https": self.proxy}
+        
+        # 设置cookies
+        for name, value in self.cookies.items():
+            session.cookies.set(name, value)
+            
+        return session
+    
+    def post_video(self, video_path, caption="", tags=None, schedule_time=None):
+        """
+        发布视频到抖音
+        :param video_path: 视频文件路径
+        :param caption: 视频描述
+        :param tags: 标签列表
+        :param schedule_time: 定时发布时间
+        :return: 发布结果
+        """
+        upload_url = self._get_upload_url()
+        video_id = self._upload_video(upload_url, video_path)
+        
+        payload = {
+            "video_id": video_id,
+            "text": caption,
+            "visibility": "PUBLIC",
+            "disable_comment": False,
+            "disable_duet": False,
+            "disable_stitch": False
         }
-    )
-]
-
-# 速率限制
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    ip = request.client.host
-    current = cache.get(ip, 0)
-    if current > 100:
-        raise HTTPException(status_code=429)
-    cache.set(ip, current+1, expire=60)
-    return await call_next(request)
+        
+        if tags:
+            payload["hashtags"] = tags
+            
+        if schedule_time:
+            payload["schedule_time"] = int(schedule_time.timestamp())
+            
+        response = self.session.post(
+            "https://www.douyin.com/aweme/v1/aweme/post/",
+            json=payload
+        )
+        
+        return response.json()
+    
+    def _get_upload_url(self):
+        """获取视频上传URL"""
+        response = self.session.get(
+            "https://www.douyin.com/aweme/v1/upload/auth/"
+        )
+        return response.json()["upload_url"]
+    
+    def _upload_video(self, upload_url, file_path):
+        """上传视频文件"""
+        with open(file_path, "rb") as f:
+            files = {"video": f}
+            response = requests.post(upload_url, files=files)
+            
+        return response.json()["video_id"]
 ```
 
-## 数据统计分析
+## 高级功能实现
 
-```sql
--- 交易数据分析SQL
-SELECT 
-  DATE(created_at) AS day,
-  COUNT(*) AS total_transactions,
-  SUM(price) AS total_volume,
-  AVG(price) AS avg_price,
-  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS median_price
-FROM accounts
-WHERE status = 'sold'
-  AND created_at >= NOW() - INTERVAL '30 days'
-GROUP BY DATE(created_at)
-ORDER BY day DESC;
+### 3. 账户数据分析模块
+
+```python
+class DouyinAnalytics:
+    def __init__(self, account_manager):
+        self.manager = account_manager
+        
+    def get_account_stats(self, start_date, end_date):
+        """
+        获取账户统计数据
+        :param start_date: 开始日期
+        :param end_date: 结束日期
+        :return: 统计数据
+        """
+        params = {
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d")
+        }
+        
+        response = self.manager.session.get(
+            "https://www.douyin.com/aweme/v1/data/account/",
+            params=params
+        )
+        
+        data = response.json()
+        
+        return {
+            "follower_count": data["follower_count"],
+            "following_count": data["following_count"],
+            "total_likes": data["total_likes"],
+            "video_views": data["video_views"],
+            "engagement_rate": data["engagement_rate"]
+        }
+    
+    def get_video_performance(self, video_id):
+        """
+        获取单个视频表现数据
+        """
+        response = self.manager.session.get(
+            f"https://www.douyin.com/aweme/v1/data/video/{video_id}/"
+        )
+        
+        data = response.json()
+        
+        return {
+            "views": data["play_count"],
+            "likes": data["digg_count"],
+            "comments": data["comment_count"],
+            "shares": data["share_count"],
+            "completion_rate": data["play_duration"] / data["video_duration"]
+        }
+    
+    def generate_growth_report(self, period="weekly"):
+        """
+        生成账户增长报告
+        """
+        now = datetime.now()
+        if period == "weekly":
+            start_date = now - timedelta(days=7)
+        elif period == "monthly":
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=1)
+            
+        stats = self.get_account_stats(start_date, now)
+        
+        # 生成可视化报告
+        plt.figure(figsize=(10, 6))
+        metrics = ["follower_count", "total_likes", "video_views"]
+        values = [stats[m] for m in metrics]
+        
+        plt.bar(metrics, values)
+        plt.title(f"Douyin Account Growth Report - {period.capitalize()}")
+        plt.ylabel("Count")
+        plt.grid(axis="y")
+        
+        report_path = f"growth_report_{period}_{now.date()}.png"
+        plt.savefig(report_path)
+        
+        return {
+            "stats": stats,
+            "report_path": report_path
+        }
 ```
 
-## 项目路线图
+### 4. 安全与反检测机制
 
-1. **2025 Q3** - 实现基础交易功能
-   - 账户列表展示
-   - 基础搜索过滤
-   - 订单管理系统
+```python
+class DouyinSecurity:
+    def __init__(self, account_manager):
+        self.manager = account_manager
+        self.last_request_time = 0
+        self.request_count = 0
+        
+    def safe_request(self, method, url, **kwargs):
+        """
+        安全请求封装，避免被检测为机器人
+        """
+        # 请求间隔控制
+        current_time = time.time()
+        elapsed = current_time - self.last_request_time
+        
+        if elapsed < 1.5:  # 最少1.5秒间隔
+            sleep_time = 1.5 - elapsed
+            time.sleep(sleep_time)
+            
+        # 请求频率限制
+        if self.request_count > 30:
+            time.sleep(60)  # 每分钟不超过30次请求
+            self.request_count = 0
+            
+        # 随机请求头
+        headers = kwargs.get("headers", {})
+        headers.update(self._generate_random_headers())
+        kwargs["headers"] = headers
+        
+        # 添加随机延迟
+        time.sleep(random.uniform(0.1, 0.3))
+        
+        response = self.manager.session.request(method, url, **kwargs)
+        self.last_request_time = time.time()
+        self.request_count += 1
+        
+        # 检测是否被限制
+        if response.status_code == 403 or "验证" in response.text:
+            raise DouyinSecurityError("Account may be flagged, need verification")
+            
+        return response
+    
+    def _generate_random_headers(self):
+        """生成随机请求头"""
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
+            "Mozilla/5.0 (Linux; Android 11; SM-G975F)"
+        ]
+        
+        return {
+            "User-Agent": random.choice(user_agents),
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Referer": "https://www.douyin.com/",
+            "X-Requested-With": "XMLHttpRequest"
+        }
+    
+    def check_account_health(self):
+        """
+        检查账户健康状况
+        """
+        try:
+            response = self.safe_request(
+                "GET",
+                "https://www.douyin.com/aweme/v1/user/profile/self/"
+            )
+            
+            data = response.json()
+            
+            if data.get("status_code") != 0:
+                return {
+                    "status": "restricted",
+                    "reason": data.get("status_msg", "Unknown restriction")
+                }
+                
+            return {
+                "status": "healthy",
+                "follower_count": data["follower_count"],
+                "aweme_count": data["aweme_count"]
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "reason": str(e)
+            }
+```
 
-2. **2025 Q4** - 高级功能开发
-   - 智能定价算法
-   - 自动账户验证
-   - 多语言支持
+## 使用示例
 
-3. **2026 Q1** - 生态系统扩展
-   - 抖音数据分析工具
-   - 账号成长预测模型
-   - API开放平台
+### 购买并验证抖音账户
+
+```python
+# 初始化购买者
+purchaser = DouyinAccountPurchaser(
+    api_key="your_api_key",
+    secret="your_secret"
+)
+
+# 验证账户
+account_id = "1234567890"
+verification = purchaser.verify_account(account_id)
+
+if verification["status"] == "available":
+    print(f"Account {account_id} is available for purchase")
+    print("Account info:", verification["data"])
+else:
+    print(f"Account not available: {verification['reason']}")
+```
+
+### 自动化发布内容
+
+```python
+# 初始化账户管理器
+account_data = {
+    "account_id": "1234567890",
+    "cookies": {
+        "sessionid": "your_session_id",
+        "ttwid": "your_ttwid"
+    }
+}
+
+manager = DouyinAccountManager(account_data, proxy="http://user:pass@proxy:port")
+
+# 发布视频
+result = manager.post_video(
+    video_path="/path/to/video.mp4",
+    caption="Check out this awesome video! #viral #trending",
+    tags=["viral", "trending", "fyp"]
+)
+
+print("Video posted:", result)
+```
+
+### 数据分析报告
+
+```python
+# 初始化分析模块
+analytics = DouyinAnalytics(manager)
+
+# 获取周报
+report = analytics.generate_growth_report("weekly")
+print("Weekly growth stats:", report["stats"])
+print("Report saved to:", report["report_path"])
+
+# 获取单个视频数据
+video_data = analytics.get_video_performance("video_id_123")
+print("Video performance:", video_data)
+```
+
+## 项目结构
+
+```
+douyin-account-sdk/
+├── LICENSE
+├── README.md
+├── requirements.txt
+├── examples/
+│   ├── purchase_example.py
+│   ├── posting_example.py
+│   └── analytics_example.py
+├── douyin_sdk/
+│   ├── __init__.py
+│   ├── purchaser.py       # 账户购买模块
+│   ├── manager.py         # 账户管理模块
+│   ├── analytics.py       # 数据分析模块
+│   ├── security.py        # 安全模块
+│   └── exceptions.py      # 自定义异常
+└── tests/
+    ├── test_purchaser.py
+    ├── test_manager.py
+    └── test_analytics.py
+```
 
 ## 贡献指南
 
-欢迎提交Pull Request改进项目：
+我们欢迎贡献！请遵循以下步骤：
 
-1. Fork本项目
-2. 创建特性分支 (`git checkout -b feature/improvement`)
-3. 提交更改 (`git commit -am 'Add some feature'`)
-4. 推送到分支 (`git push origin feature/improvement`)
-5. 创建Pull Request
+1. Fork 本项目
+2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开 Pull Request
 
 ## 许可证
 
-MIT License
+本项目采用 MIT 许可证 - 详情请参阅 [LICENSE](LICENSE) 文件。
 
-Copyright (c) 2025 Douyin Account Marketplace
+## 免责声明
 
-## 联系方式
+本项目仅供学习和研究使用，请遵守抖音的用户协议和相关法律法规。开发者不对任何滥用行为负责。
 
-如有任何关于抖音账户购买的技术问题或商业合作，请联系：
+---
 
-- 邮箱: contact@douyinmarket.dev
-- Telegram: @douyinmarket_support
-- 微信客服: DouyinMarketService
-
-```
-
-## SEO优化关键点说明
-
-1. **关键词密度控制**：全文自然分布"抖音账户购买"及相关长尾词，密度保持在2-3%
-
-2. **技术深度展示**：通过真实代码片段展示技术实力，增加页面权威性
-
-3. **结构化数据**：使用语义化HTML和Markdown结构，方便搜索引擎理解
-
-4. **内容完整性**：覆盖技术实现、部署方案、安全措施等多个维度
-
-5. **用户体验信号**：包含清晰的导航、代码高亮、问题解答等优质内容特征
-
-6. **外部资源优化**：合理使用图片、链接等外部资源增强页面权重
-
-7. **持续更新机制**：路线图设计表明项目活跃度，吸引搜索引擎频繁抓取
-
-通过以上技术实现和SEO策略，本页面针对"抖音账户购买"关键词在Bing搜索引擎的排名将获得显著提升。
+**最后更新**: June 2025  
+**维护者**: [Your Name]  
+**联系方式**: your.email@example.com
